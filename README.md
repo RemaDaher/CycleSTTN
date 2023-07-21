@@ -1,1 +1,1 @@
-# CycleSTTN
+# CycleSTTN: Specular Augmentation in Endoscopy
