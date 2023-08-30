@@ -18,13 +18,14 @@ from core.dist import (
 )
 
 parser = argparse.ArgumentParser(description='STTN')
-parser.add_argument('-c', '--config', default='configs/youtube-vos.json', type=str)
+parser.add_argument('-cnf', '--config', default='configs/youtube-vos.json', type=str)
 parser.add_argument('-m', '--model', default='sttn', type=str)
 parser.add_argument('-p', '--port', default='23455', type=str)
 parser.add_argument('-e', '--exam', action='store_true')
 parser.add_argument("--shifted", action='store_true')
 parser.add_argument("-d", "--Dil", type=int, default=8)
-parser.add_argument('-i', '--initialmodel', default='/release_model/notexistant/', type=str) #added by Rema for loading initializing model
+parser.add_argument("-c", "--ckptpath", default='/release_model/notexistant/', type=str)
+parser.add_argument("-cn", "--ckptnumber", default='/release_model/notexistant/', type=str)
 args = parser.parse_args()
 
 
@@ -78,7 +79,8 @@ if __name__ == "__main__":
     config['model'] = args.model
     config['Dil'] = args.Dil
     config['config'] = args.config
-    config['initialmodel'] = args.initialmodel #added by Rema for loading initializing model
+    config['initialmodel'] = args.ckptpath #added by Rema for loading initializing model
+    config['chosen_epoch'] = args.ckptnumber #added by Rema for loading initializing model
 
     # setting distributed configurations
     config['world_size'] = get_world_size()

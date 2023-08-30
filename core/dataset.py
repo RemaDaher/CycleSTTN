@@ -1,33 +1,23 @@
 import os
 import cv2
-import io
-import glob
-import scipy
 import json
-import zipfile
 import random
-import collections
 import torch
-import math
 import numpy as np
-import torchvision.transforms.functional as F
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from PIL import Image, ImageFilter
-from skimage.color import rgb2gray, gray2rgb
-from core.utils import ZipReader, create_random_shape_with_random_motion
-from core.utils import Stack, ToTorchFormatTensor, GroupRandomHorizontalFlip
+from PIL import Image
+from core.utils import ZipReader
+from core.utils import Stack, ToTorchFormatTensor
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, config, split='train', debug=False):
-        self.Dil=config['Dil']
-        args = config['data_loader']
+    def __init__(self, args: dict, split='train', debug=False):
         self.shifted=args['shifted']
         self.sampling = args['sampling']
         self.sampling_window = args['sampling_window']
-        self.args = args
         self.masking=args['masking']
+        self.Dil=args['Dil']
+        self.args = args
         self.split = split
         self.sample_length = args['sample_length']
         self.size = self.w, self.h = (args['w'], args['h'])
@@ -94,8 +84,9 @@ class Dataset(torch.utils.data.Dataset):
                 m = m.resize(self.size)
                 m = np.array(m.convert('L'))
                 m = np.array(m > 199).astype(np.uint8) #Rema:from 0 to 199 changes to binary better
-                m = cv2.dilate(m, cv2.getStructuringElement(
-                    cv2.MORPH_ELLIPSE, (self.Dil,self.Dil)), iterations=1) #Rema:Dilate only 1 iteration change 3,3 to 55(tried it in quantifyResults.ipyb
+                if self.Dil !=0:
+                    m = cv2.dilate(m, cv2.getStructuringElement(
+                        cv2.MORPH_ELLIPSE, (self.Dil,self.Dil)), iterations=1) #Rema:Dilate only 1 iteration change 3,3 to 55(tried it in quantifyResults.ipyb
                 erase=m
                 if self.shifted:
                     M = np.float32([[1,0,50],[0,1,0]])
@@ -113,8 +104,9 @@ class Dataset(torch.utils.data.Dataset):
                 m = m.resize(self.size)
                 m = np.array(m.convert('L'))
                 m = np.array(m > 199).astype(np.uint8) #Rema:from 0 to 199 changes to binary better
-                m = cv2.dilate(m, cv2.getStructuringElement(
-                    cv2.MORPH_ELLIPSE, (self.Dil,self.Dil)), iterations=1) #Rema:Dilate only 1 iteration change 3,3 to 55(tried it in quantifyResults.ipyb
+                if self.Dil !=0:
+                    m = cv2.dilate(m, cv2.getStructuringElement(
+                        cv2.MORPH_ELLIPSE, (self.Dil,self.Dil)), iterations=1) #Rema:Dilate only 1 iteration change 3,3 to 55(tried it in quantifyResults.ipyb
                 erase=m
                 M = np.float32([[1,0,50],[0,1,0]])
                 m = cv2.warpAffine(m,M,self.size)

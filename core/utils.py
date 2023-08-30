@@ -1,27 +1,12 @@
 import matplotlib.patches as patches
 from matplotlib.path import Path
-import os
-import sys
 import io
 import cv2
-import time
-import argparse
-import shutil
 import random
 import zipfile
-from glob import glob
-import math
 import numpy as np
-import torch.nn.functional as F
-import torchvision.transforms as transforms
-from PIL import Image, ImageOps, ImageDraw, ImageFilter
-
+from PIL import Image, ImageOps
 import torch
-import torchvision
-import torch.nn as nn
-import torch.distributed as dist
-
-from skimage import color
 import matplotlib
 from matplotlib import pyplot as plt
 matplotlib.use('agg')
@@ -238,39 +223,7 @@ def random_move_control_points(X, Y, imageHeight, imageWidth, lineVelocity, regi
     new_Y = np.clip(Y, 0, imageWidth - region_width)
     return new_X, new_Y, lineVelocity
 
-def SpecularDetectionMeslouhi2011(img):
-    # Step 1 Image Enhancement
-    enhanced = ReflectionEnhance(img)
-    # Step 2 Conversion to CIE-XYZ and then getting the luminance (Y)
-    enhanced_xyz = BGRtoXYZ(enhanced)
-    Y = enhanced_xyz[:, 1]
-    # Step 3 Getting chromatic luminance (y)
-    y = enhanced_xyz[:, 1] / (enhanced_xyz[:, 0] + enhanced_xyz[:, 1] + enhanced_xyz[:, 2])
-    # Step 3 Getting Mask
-    specular_mask = Y >= y
-    # dilated_mask = cv2.dilate(specular_mask.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
-    return specular_mask
 
-
-def ReflectionEnhance(img):
-    #TODO: if inputed using cv2 it needs to be changed to rgb first
-    # img = img/255.0
-    min_rgb = torch.min(img, dim=1)[0]
-    max_rgb = torch.max(img, dim=1)[0]
-    s = min_rgb / max_rgb
-    enhanced = torch.ones(img.shape, dtype=torch.float32)
-    enhanced[:, 0] = s * img[:, 0]
-    enhanced[:, 1] = s * img[:, 1]
-    enhanced[:, 2] = s * img[:, 2]
-    return enhanced
-
-def BGRtoXYZ(img):
-    b, g, r = img[:, 0], img[:, 1], img[:, 2]
-    x = 0.1804375 * b + 0.3575761 * g + 0.4124564 * r
-    y = 0.0721750 * b + 0.7151522 * g + 0.2126729 * r
-    z = 0.9503041 * b + 0.1191920 * g + 0.0193339 * r
-    xyz = torch.stack((x, y, z), dim=1)
-    return xyz
 
 # ##############################################
 # ##############################################

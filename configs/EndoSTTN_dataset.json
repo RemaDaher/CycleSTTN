@@ -8,7 +8,9 @@
         "w": 288,
         "h": 288,
         "sample_length": 5,
-        "masking": "loaded"
+        "masking": "loaded",
+        "Dil": 8,
+        "frame_limit": 927
     },
     "losses": {
         "hole_weight": 1,

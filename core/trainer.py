@@ -1,27 +1,13 @@
 import os
-import cv2
-import time
-import math
 import glob
 from tqdm import tqdm
-import shutil
 import importlib
-import datetime
-import numpy as np
-from PIL import Image
-from math import log10
-
-from functools import partial
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from tensorboardX import SummaryWriter
-from torchvision.utils import make_grid, save_image
-import torch.distributed as dist
 
 from core.dataset import Dataset
 from core.loss import AdversarialLoss
@@ -40,7 +26,7 @@ class Trainer():
             self.config['trainer']['iterations'] = 5
 
         # setup data set and data loader
-        self.train_dataset = Dataset(config, split='train',  debug=debug)
+        self.train_dataset = Dataset(config['data_loader'], split='train',  debug=debug)
         self.train_sampler = None
         self.train_args = config['trainer']
         if config['distributed']:
@@ -75,8 +61,8 @@ class Trainer():
             self.netD.parameters(), 
             lr=config['trainer']['lr'],
             betas=(self.config['trainer']['beta1'], self.config['trainer']['beta2']))
+        self.load_initialmodel() #loading order shouldnt make a difference if continuing training from a checkpoint dont initialize.
         self.load()
-        self.load_initialmodel() #added by Rema for loading initializing model
 
         if config['distributed']:
             self.netG = DDP(
@@ -167,11 +153,11 @@ class Trainer():
                 self.config['initialmodel'], 'latest.ckpt'), 'r').read().splitlines()[-1]
             if latest_epoch is not None:
                 gen_path = os.path.join(
-                    self.config['initialmodel'], 'gen_{}.pth'.format(str(latest_epoch).zfill(5)))
+                    self.config['initialmodel'], 'gen_{}.pth'.format((self.config['chosen_epoch']).zfill(5)))
                 dis_path = os.path.join(
-                    self.config['initialmodel'], 'dis_{}.pth'.format(str(latest_epoch).zfill(5)))
+                    self.config['initialmodel'], 'dis_{}.pth'.format((self.config['chosen_epoch']).zfill(5)))
                 opt_path = os.path.join(
-                    self.config['initialmodel'], 'opt_{}.pth'.format(str(latest_epoch).zfill(5)))
+                    self.config['initialmodel'], 'opt_{}.pth'.format((self.config['chosen_epoch']).zfill(5)))
                 if self.config['global_rank'] == 0:
                     print('Loading model from {}...'.format(gen_path))
                 data = torch.load(gen_path, map_location=self.config['device'])
