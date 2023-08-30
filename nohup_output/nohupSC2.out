@@ -1,18 +1,0 @@
-using GPU 2-2 for training
-using GPU 1-1 for training
-using GPU 3-3 for training
- 18%|█▊        | 90000/500000 [00:00<?, ?it/s]using GPU 0-0 for training
-[**] create folder SanityChecks/sttn_SanityCheck3
-Warnning: There is no trained model found. An initialized model will be used.
-Loading model from release_model/sttn_hyper-kvasir-transfer2-TransMask/gen_00009.pth...
-/opt/conda/lib/python3.8/site-packages/torch/nn/functional.py:3075: UserWarning: The default behavior for interpolate/upsample with float scale_factor changed in 1.6.0 to align with other frameworks/libraries, and now uses scale_factor directly, instead of relying on the computed output size. If you wish to restore the old behavior, please set recompute_scale_factor=True. See the documentation of nn.Upsample for details. 
-  warnings.warn("The default behavior for interpolate/upsample with float scale_factor changed "
-/opt/conda/lib/python3.8/site-packages/torch/nn/functional.py:3075: UserWarning: The default behavior for interpolate/upsample with float scale_factor changed in 1.6.0 to align with other frameworks/libraries, and now uses scale_factor directly, instead of relying on the computed output size. If you wish to restore the old behavior, please set recompute_scale_factor=True. See the documentation of nn.Upsample for details. 
-  warnings.warn("The default behavior for interpolate/upsample with float scale_factor changed "
-/opt/conda/lib/python3.8/site-packages/torch/nn/functional.py:3075: UserWarning: The default behavior for interpolate/upsample with float scale_factor changed in 1.6.0 to align with other frameworks/libraries, and now uses scale_factor directly, instead of relying on the computed output size. If you wish to restore the old behavior, please set recompute_scale_factor=True. See the documentation of nn.Upsample for details. 
-  warnings.warn("The default behavior for interpolate/upsample with float scale_factor changed "
-/opt/conda/lib/python3.8/site-packages/torch/nn/functional.py:3075: UserWarning: The default behavior for interpolate/upsample with float scale_factor changed in 1.6.0 to align with other frameworks/libraries, and now uses scale_factor directly, instead of relying on the computed output size. If you wish to restore the old behavior, please set recompute_scale_factor=True. See the documentation of nn.Upsample for details. 
-  warnings.warn("The default behavior for interpolate/upsample with float scale_factor changed "
- 18%|█▊        | 90000/500000 [00:04<?, ?it/s]
-/opt/conda/lib/python3.8/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 8 leaked semaphore objects to clean up at shutdown
-  warnings.warn('resource_tracker: There appear to be %d '
