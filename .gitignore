@@ -19,6 +19,12 @@ sampleaugmentations*
 runResults*
 nohup_output
 test_strideref.py
+test_trymultigpu.py
+!.gitkeep
+*.swp
+*-original.py
+Automatic_detection_and_Inpainting_of_specular_reflections_Othmane_2011
+Evaluation_Results
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
