@@ -13,8 +13,6 @@ from core.utils import Stack, ToTorchFormatTensor
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, args: dict, split='train', debug=False):
         self.shifted=args['shifted']
-        self.sampling = args['sampling']
-        self.sampling_window = args['sampling_window']
         self.masking=args['masking']
         self.Dil=args['Dil']
         self.args = args
@@ -55,7 +53,7 @@ class Dataset(torch.utils.data.Dataset):
         if self.masking=='empty':
             all_masks = Image.fromarray((np.ones((self.h, self.w))*255).astype(np.uint8))
             all_masks = [all_masks.convert('L')]*len(all_frames)
-        ref_index = get_ref_index(len(all_frames), self.sample_length, self.sampling, self.sampling_window)
+        ref_index = get_ref_index(len(all_frames), self.sample_length)
         # read video frames
         frames = []
         NS_frames = []
@@ -130,18 +128,9 @@ class Dataset(torch.utils.data.Dataset):
             return frame_tensors, mask_tensors
 
 
-def get_ref_index(length, sample_length, sampling, sampling_window):
+def get_ref_index(length, sample_length):
     if random.uniform(0, 1) > 0.5:
-        if sampling == "limited":
-            # sampling limited
-            if length >= sampling_window:
-                start = random.randint(0, length-sampling_window)
-                rng = range(start,start+sampling_window)
-            else:
-                rng = range(length)
-            ref_index = random.sample(rng, sample_length)
-        else:
-            ref_index = random.sample(range(length), sample_length)
+        ref_index = random.sample(range(length), sample_length)
         ref_index.sort()
     else:
         pivot = random.randint(0, length-sample_length)

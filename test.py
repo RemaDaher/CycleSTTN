@@ -71,6 +71,7 @@ def read_mask(mpath):
         if args.Dil !=0:
             m = cv2.dilate(m, cv2.getStructuringElement(
                 cv2.MORPH_ELLIPSE, (args.Dil, args.Dil)), iterations=1) #Rema:Dilate only 1 iteration
+        m_T=np.copy(m)
         if args.shifted:
             M = np.float32([[1,0,50],[0,1,0]])
             m_T = cv2.warpAffine(m,M,sz)  
@@ -100,7 +101,7 @@ def read_frames_mask_zip(fpath, mpath):
     frames = {}
     masks = {}
     fnames = {}
-    with open(os.path.join(fpath.split("JPEGImages")[0], 'test.json'), 'r') as f:
+    with open(os.path.join(os.path.abspath(os.path.join(fpath, os.pardir)), 'test.json'), 'r') as f:
         video_dict = json.load(f)
     video_names = list(video_dict.keys())
     for video_name in video_names: #[:1]:
@@ -123,6 +124,7 @@ def read_frames_mask_zip(fpath, mpath):
             if args.Dil !=0:
                 m = cv2.dilate(m, cv2.getStructuringElement(
                     cv2.MORPH_ELLIPSE, (args.Dil, args.Dil)), iterations=1) #Rema:Dilate only 1 iteration change 3,3 to 55(tried it in quantifyResults.ipyb
+            m_T=np.copy(m)
             if args.shifted:
                 M = np.float32([[1,0,50],[0,1,0]])
                 m_T = cv2.warpAffine(m,M,sz)  
@@ -139,7 +141,7 @@ def read_frames_mask_zip(fpath, mpath):
 
 def evaluate(w, h, frames, fnames, masks, video_name, model, device, overlaid, shifted, Dil, masking):
     #added for memory issue
-    if len(frames)>args.famelimit:
+    if len(frames)>args.famelimit or len(masks)>args.famelimit:
         masks=masks[:args.famelimit]
         frames=frames[:args.famelimit]
   
@@ -219,6 +221,7 @@ def main_worker():
     else : masking="masked"
     if args.nomask: 
         shifted=""
+        overlaid=""
     # set up models 
     device = torch.device("cuda:"+args.gpu if torch.cuda.is_available() else "cpu")
     net = importlib.import_module('model.' + args.model)
@@ -232,11 +235,11 @@ def main_worker():
     model.eval()
     
     if args.zip:
-        file1 = os.path.join(args.frame.split("JPEGImages")[0], 'files/testframes_v.npy') # 'files/frames_v.npy')
-        file2 = os.path.join(args.frame.split("JPEGImages")[0], 'files/testfnames_v.npy') # 'files/fnames_v.npy')
-        file3 = os.path.join(args.frame.split("JPEGImages")[0], 'files/testmasks_v.npy') # 'files/masks_v.npy')
-        file4 = os.path.join(args.frame.split("JPEGImages")[0], 'files/testvideo_names.npy') # 'files/video_names.npy')
-        file5 = os.path.join(args.frame.split("JPEGImages")[0], 'files/testsz.npy') # 'files/sz.npy')
+        file1 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testframes_v.npy') # 'files/frames_v.npy')
+        file2 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testfnames_v.npy') # 'files/fnames_v.npy')
+        file3 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testmasks_v.npy') # 'files/masks_v.npy')
+        file4 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testvideo_names.npy') # 'files/video_names.npy')
+        file5 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testsz.npy') # 'files/sz.npy')
         file1Ex = os.path.isfile(file1)
         file2Ex = os.path.isfile(file2)
         file3Ex = os.path.isfile(file3)
@@ -261,7 +264,7 @@ def main_worker():
             print("sz loaded")
             print("files loaded...")
         else:
-            os.makedirs(os.path.join(args.frame.split("JPEGImages")[0], 'files'), exist_ok=True)
+            os.makedirs(os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files'), exist_ok=True)
             frames_v, fnames_v, masks_v, video_names, sz = read_frames_mask_zip(args.frame, args.mask)
             np.save(file1, frames_v) 
             np.save(file2, fnames_v) 

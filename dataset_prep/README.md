@@ -17,12 +17,16 @@ Our dataset is based on the Hyper Kvasir dataset, please also cite it if used:
 
 1. To download our dataset:
     - Download it from ([Dataset](https://liveuclac-my.sharepoint.com/:f:/g/personal/ucabrd0_ucl_ac_uk/EoyhTw5vdQBHr8-r-Iv-XfcB5E_88GkMuEddnRVKxwfQKQ?e=XBY9Dg))
-    - Place it in folder datasets
+    - Unzip it in [datasets](./datasets/)
+    - Download and unzip the images with specularities removed ([JPEGImagesNS](https://liveuclac-my.sharepoint.com/:f:/g/personal/ucabrd0_ucl_ac_uk/EjnAyN2-bvhGntHVfRGknZABQPVokeqgYza59BCuDNtoyQ?e=xnEGKs)) in [./datasets/EndoSTTN_dataset](./datasets/EndoSTTN_dataset)
     - It should look like this:
 
     ```
     datasets
       |- EndoSTTN_dataset
+            |- JPEGImagesNS
+              |- <video_id>.zip
+              |- <video_id>.zip
             |- JPEGImages
               |- <video_id>.zip
               |- <video_id>.zip
@@ -102,4 +106,23 @@ Our dataset is based on the Hyper Kvasir dataset, please also cite it if used:
             |- test.json 
             |- train.json 
     ``` 
-
+    - To create the JPEGImagesNS folder:
+      - inpaint images using [Endo-STTN](https://github.com/endomapper/Endo-STTN)
+      - Edit folder to look like JPEGImages
+      - Add JPEGImagesNS to [./datasets/EndoSTTN_dataset](./datasets/EndoSTTN_dataset):
+    
+      ```
+      datasets
+        |- EndoSTTN_dataset
+              |- JPEGImagesNS
+                |- <video_id>.zip
+                |- <video_id>.zip
+              |- JPEGImages
+                |- <video_id>.zip
+                |- <video_id>.zip
+              |- Annotations
+                |- <video_id>.zip
+                |- <video_id>.zip        
+              |- test.json 
+              |- train.json 
+      ``` 

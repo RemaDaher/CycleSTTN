@@ -1,9 +1,7 @@
 
-from itertools import cycle
 import os
 import json
 import argparse
-import datetime
 import numpy as np
 from shutil import copyfile
 import torch
@@ -19,17 +17,16 @@ from core.dist import (
 )
 
 parser = argparse.ArgumentParser(description='STTN')
-parser.add_argument('-c', '--config', default='configs/youtube-vos.json', type=str)
+parser.add_argument('-cnf', '--config', default='configs/youtube-vos.json', type=str)
 parser.add_argument('-m', '--model', default='sttn', type=str)
 parser.add_argument('-p', '--port', default='23455', type=str)
 parser.add_argument('-e', '--exam', action='store_true')
-parser.add_argument("-d", "--Dil", type=int, default=8)
-parser.add_argument('-i', '--initialmodel', default='/release_model/notexistant/', type=str) #added by Rema for loading initializing model
-parser.add_argument('-iA', '--initialmodelA', default='/release_model/notexistant/', type=str) #added by Rema for loading initializing model
-parser.add_argument('-iB', '--initialmodelB', default='/release_model/notexistant/', type=str) #added by Rema for loading initializing model
-parser.add_argument('-ep', '--chosen_epoch', default='8', type=str)
-parser.add_argument('-epA', '--chosen_epochA', default='8', type=str)
-parser.add_argument('-epB', '--chosen_epochB', default='8', type=str)
+parser.add_argument('-c', '--ckptpath', default='/release_model/notexistant/', type=str) #added by Rema for loading initializing model
+parser.add_argument('-cRem', '--ckptpathRem', default='/release_model/notexistant/', type=str) #added by Rema for loading initializing model
+parser.add_argument('-cAdd', '--ckptpathAdd', default='/release_model/notexistant/', type=str) #added by Rema for loading initializing model
+parser.add_argument('-cn', '--ckptnumber', default='8', type=str)
+parser.add_argument('-cnRem', '--ckptnumberRem', default='8', type=str)
+parser.add_argument('-cnAdd', '--ckptnumberAdd', default='8', type=str)
 args = parser.parse_args()
 
 
@@ -85,17 +82,16 @@ if __name__ == "__main__":
     config = json.load(open(args.config))
     os.environ["CUDA_VISIBLE_DEVICES"]=config['gpu'] #added by Rema to choose only one GPU
     config['model'] = args.model
-    config['Dil'] = args.Dil
     config['config'] = args.config
     if 'masking' not in config['data_loader']: 
         config['data_loader']['masking']="loaded"
     print("masks are:", config['data_loader']['masking'])
-    config['initialmodelA'] = args.initialmodelA #added by Rema for loading initializing model
-    config['initialmodelB'] = args.initialmodelB #added by Rema for loading initializing model
-    config['initialmodel'] = args.initialmodel #added by Rema for loading initializing model
-    config['chosen_epoch'] = args.chosen_epoch
-    config['chosen_epochA'] = args.chosen_epochA
-    config['chosen_epochB'] = args.chosen_epochB
+    config['initialmodelA'] = args.ckptpathRem #added by Rema for loading initializing model
+    config['initialmodelB'] = args.ckptpathAdd #added by Rema for loading initializing model
+    config['initialmodel'] = args.ckptpath #added by Rema for loading initializing model
+    config['chosen_epoch'] = args.ckptnumber
+    config['chosen_epochA'] = args.ckptnumberRem
+    config['chosen_epochB'] = args.ckptnumberAdd
 
     # setting distributed configurations
     config['world_size'] = get_world_size()

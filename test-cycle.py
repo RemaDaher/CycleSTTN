@@ -1,30 +1,17 @@
 # -*- coding: utf-8 -*-
 import cv2
-import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
-import math
 import time
 import importlib
 import os
 import argparse
-import copy
-import datetime
-import random
-import sys
 import json
 import pathlib
 
 import torch
-from torch.autograd import Variable
-
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.nn.init as init
-import torch.utils.model_zoo as model_zoo
-from torchvision import models
-import torch.multiprocessing as mp
 from torchvision import transforms
+from core.utils import ZipReader
 
 # My libs
 from core.utils import Stack, ToTorchFormatTensor
@@ -39,16 +26,18 @@ parser.add_argument("-cn", "--ckptnumber", type=str, required=True)
 parser.add_argument("--model", type=str, default='sttn')
 parser.add_argument("--shifted", action='store_true')
 parser.add_argument("--overlaid", action='store_true')
+parser.add_argument("--famelimit", type=int, default=927)
 parser.add_argument("--nomask", action='store_true')
 parser.add_argument("--oppmask", action='store_true')
+parser.add_argument("--zip", action='store_true')
 parser.add_argument("-g", "--gpu", type=str, default="7", required=True)
 parser.add_argument("-d", "--Dil", type=int, default=8)
+parser.add_argument("-r", "--readfiles", action='store_true')
 
 
 args = parser.parse_args()
 
 
-w, h = 288, 288
 ref_length = 10
 neighbor_stride = 5
 default_fps = 24
@@ -108,34 +97,55 @@ def read_frames(fpath):
         frames.append(f)
     return frames, fnames
 
+def read_frames_mask_zip(fpath, mpath):
+    frames = {}
+    masks = {}
+    fnames = {}
+    with open(os.path.join(os.path.abspath(os.path.join(fpath, os.pardir)), 'test.json'), 'r') as f:
+        video_dict = json.load(f)
+    video_names = list(video_dict.keys())
+    for video_name in video_names: #[:1]:
+        frames_v = []
+        masks_v = []       
+        zfilelist = ZipReader.filelist("{}/{}.zip".format(
+            fpath, video_name)) #used since all_frames counts from 0 whereas zfilelist checks the correct naming of files
+        fnames[video_name]=zfilelist
+        mult=0 if args.nomask else 1
+        adder=255 if args.nomask else 0
+        for zfile in zfilelist: #[:100]:
+            img = ZipReader.imread('{}/{}.zip'.format(
+                fpath, video_name), zfile).convert('RGB')
+            frames_v.append(img)
+            m = ZipReader.imread('{}/{}.zip'.format(
+                mpath, video_name), zfile).convert('RGB')
+            sz=m.size
+            m = np.array(m.convert('L'))
+            m = np.array(m > 199).astype(np.uint8) #Rema:from 0 to 199 changes to binary better
+            if args.Dil !=0:
+                m = cv2.dilate(m, cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE, (args.Dil, args.Dil)), iterations=1) #Rema:Dilate only 1 iteration change 3,3 to 55(tried it in quantifyResults.ipyb
+            m_T=np.copy(m)
+            if args.shifted:
+                M = np.float32([[1,0,50],[0,1,0]])
+                m_T = cv2.warpAffine(m,M,sz)  
+                m_T[m!=0]=0
+            if args.oppmask:
+                m_T = 1-m_T
+            all_mask=Image.fromarray(m_T*255*mult+adder)
+            masks_v.append(all_mask)
+        frames[video_name]=frames_v
+        masks[video_name]=masks_v
+        print(video_name)
+        
+    return frames, fnames, masks, video_names, sz
 
-def evaluate(w, h, frames, fnames, masks, video_name, whichmodel):
-    overlaid="overlaid" if args.overlaid else "notoverlaid"
-    shifted="shifted" if args.shifted else "notshifted"
-    Dil = "noDil" if args.Dil == 0 else ""
-    if args.nomask: masking="nomask" 
-    elif args.oppmask: masking="oppmask" 
-    else : masking="masked"
-    if args.nomask: 
-        shifted=""
-    # set up models 
-    device = torch.device("cuda:"+args.gpu if torch.cuda.is_available() else "cpu")
-    net = importlib.import_module('model.' + args.model)
-    
-
-    model = net.InpaintGenerator().to(device)
-    model_path = os.path.join(args.ckptpath,"gen_"+whichmodel+"_"+args.ckptnumber.zfill(5)+".pth")
-    data = torch.load(model_path, map_location=device)
-    model.load_state_dict(data["netG_"+whichmodel])
-    print("loading model "+whichmodel+" from: {}".format(args.ckptpath))
-    model.eval()
-
+def evaluate(w, h, frames, fnames, masks, video_name, whichmodel, model, device, overlaid, shifted, Dil, masking):
 
     #added for memory issue
-    if len(frames)>100:
-        masks=masks[:100]
-        frames=frames[:100]
-
+    if len(frames)>args.famelimit or len(masks)>args.famelimit:
+        masks=masks[:args.famelimit]
+        frames=frames[:args.famelimit]
+  
     video_length = len(frames)
     feats = _to_tensors(frames).unsqueeze(0)*2-1
     frames = [np.array(f).astype(np.uint8) for f in frames]
@@ -184,7 +194,7 @@ def evaluate(w, h, frames, fnames, masks, video_name, whichmodel):
                     comp_frames[idx] = comp_frames[idx].astype(
                         np.float32)*0.5 + img.astype(np.float32)*0.5
                     #Rema:
-    savebasepath=os.path.join(args.output,"gen_"+args.ckptnumber.zfill(5),video_name, overlaid, shifted, masking, whichmodel, Dil)
+    savebasepath=os.path.join(args.output,"gen_"+args.ckptnumber.zfill(5),"full_video", video_name, overlaid, shifted, masking, whichmodel, Dil)
     frameresultpath=os.path.join(savebasepath,"frameresult")
     pathlib.Path(frameresultpath).mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(savebasepath+"/result.mp4", cv2.VideoWriter_fourcc(*"mp4v"), default_fps, (w, h))
@@ -204,12 +214,87 @@ def evaluate(w, h, frames, fnames, masks, video_name, whichmodel):
     print('Finish in {}'.format(savebasepath+"/result.mp4"))
 
 def main_worker():
-    video_name=os.path.basename(args.frame.rstrip("/"))
-    frames, fnames = read_frames(args.frame)
-    w, h=frames[0].size
-    masks = read_mask(args.mask)
-    evaluate(w, h, frames, fnames, masks, video_name, "A")
-    evaluate(w, h, frames, fnames, masks, video_name, "B")
+    overlaid="overlaid" if args.overlaid else "notoverlaid"
+    shifted="shifted" if args.shifted else "notshifted"
+    Dil = "noDil" if args.Dil == 0 else ""
+    if args.nomask: masking="nomask" 
+    elif args.oppmask: masking="oppmask" 
+    else : masking="masked"
+    if args.nomask: 
+        shifted=""
+        overlaid=""
+    # set up models 
+    device = torch.device("cuda:"+args.gpu if torch.cuda.is_available() else "cpu")
+    net = importlib.import_module('model.' + args.model)
+    
+
+    model_A = net.InpaintGenerator().to(device)
+    model_path_A = os.path.join(args.ckptpath,"gen_A_"+args.ckptnumber.zfill(5)+".pth")
+    data_A = torch.load(model_path_A, map_location=device)
+    model_A.load_state_dict(data_A["netG_A"])
+    print("loading model A from: {}".format(args.ckptpath))
+    model_A.eval()
+    
+    model_B = net.InpaintGenerator().to(device)
+    model_path_B = os.path.join(args.ckptpath,"gen_B_"+args.ckptnumber.zfill(5)+".pth")
+    data_B = torch.load(model_path_B, map_location=device)
+    model_B.load_state_dict(data_B["netG_B"])
+    print("loading model B from: {}".format(args.ckptpath))
+    model_B.eval()
+
+    if args.zip:
+        file1 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testframes_v.npy') # 'files/frames_v.npy')
+        file2 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testfnames_v.npy') # 'files/fnames_v.npy')
+        file3 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testmasks_v.npy') # 'files/masks_v.npy')
+        file4 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testvideo_names.npy') # 'files/video_names.npy')
+        file5 = os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files/testsz.npy') # 'files/sz.npy')
+        file1Ex = os.path.isfile(file1)
+        file2Ex = os.path.isfile(file2)
+        file3Ex = os.path.isfile(file3)
+        file4Ex = os.path.isfile(file4)
+        file5Ex = os.path.isfile(file5)
+
+        if file1Ex and file2Ex and file3Ex and file4Ex and file5Ex and args.readfiles:
+            # start timer
+            start = time.time()
+            frames_v = np.load(file1, allow_pickle='TRUE').item()
+            # end timer
+            end = time.time()
+            print("frames_v loaded")
+            print(f"Time taken to load frames_v: {end - start} seconds") 
+            fnames_v = np.load(file2, allow_pickle='TRUE').item()
+            print("fnames_v loaded")
+            masks_v = np.load(file3, allow_pickle='TRUE').item()
+            print("masks_v loaded")
+            video_names = np.load(file4, allow_pickle='TRUE')
+            print("video_names loaded")
+            sz = np.load(file5, allow_pickle='TRUE')
+            print("sz loaded")
+            print("files loaded...")
+        else:
+            os.makedirs(os.path.join(os.path.abspath(os.path.join(args.frame, os.pardir)), 'files'), exist_ok=True)
+            frames_v, fnames_v, masks_v, video_names, sz = read_frames_mask_zip(args.frame, args.mask)
+            np.save(file1, frames_v) 
+            np.save(file2, fnames_v) 
+            np.save(file3, masks_v) 
+            np.save(file4, video_names) 
+            np.save(file5, sz) 
+
+        w, h = sz
+        for video_name in video_names:
+            frames = frames_v[video_name]
+            fnames = fnames_v[video_name]
+            masks = masks_v[video_name]
+            evaluate(w, h, frames, fnames, masks, video_name, "A", model_A, device, overlaid, shifted, Dil, masking)
+            evaluate(w, h, frames, fnames, masks, video_name, "B", model_B, device, overlaid, shifted, Dil, masking)
+    else:
+        # prepare datset, encode all frames into deep space 
+        video_name=os.path.basename(args.frame.rstrip("/"))
+        frames, fnames = read_frames(args.frame)
+        w, h=frames[0].size
+        masks = read_mask(args.mask)
+        evaluate(w, h, frames, fnames, masks, video_name, "A", model_A, device, overlaid, shifted, Dil, masking)
+        evaluate(w, h, frames, fnames, masks, video_name, "B", model_B, device, overlaid, shifted, Dil, masking)
     
 if __name__ == '__main__':
     main_worker()

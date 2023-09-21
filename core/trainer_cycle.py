@@ -1,30 +1,18 @@
 import os
-import cv2
-import time
-import math
 import glob
 from tqdm import tqdm
-import shutil
 import importlib
-import datetime
 import numpy as np
 from PIL import Image
-from math import log10
 import itertools
 
-from functools import partial
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from tensorboardX import SummaryWriter
-from torchvision.utils import make_grid, save_image
-import torch.distributed as dist
 
-from core.utils import SpecularDetectionMeslouhi2011
 from core.dataset_cycle import Dataset
 from core.loss import AdversarialLoss
 import sys
@@ -42,7 +30,7 @@ class Trainer():
             self.config['trainer']['iterations'] = 5
 
         # setup data set and data loader
-        self.train_dataset = Dataset(config, split='train',  debug=debug)
+        self.train_dataset = Dataset(config['data_loader'], split='train',  debug=debug)
         self.train_sampler = None
         self.train_args = config['trainer']
         if config['distributed']:
@@ -322,7 +310,6 @@ class Trainer():
             elif self.config['data_loader']['masking'] =='mixed': self._train_epoch_InpTargFrames_mixedmasks(pbar)
             elif self.config['data_loader']['masking'] =='simple mixed': self._train_epoch_InpFrame_mixedmasks(pbar)
             elif self.config['data_loader']['masking'] =='load_add': self._train_epoch_InpTargFrames_masks(pbar)
-            elif self.config['data_loader']['masking'] =='load_add_detection': self._train_epoch_InpTargFrames_masks_detection(pbar)
             if self.iteration > self.train_args['iterations']:
                 break
         print('\nEnd training....')
@@ -1292,234 +1279,6 @@ class Trainer():
                 cycle_A_loss = self.l1_loss(rec_A, frames) * lambda_A
                 # Backward cycle hole and valid loss || G_A(G_B(B)) - B||
                 cycle_B_loss = self.l1_loss(rec_B, framesNS) * lambda_B
-                gen_loss += cycle_A_loss + cycle_B_loss
-                self.add_summary(
-                    self.gen_A_writer, 'loss/cycle_A_loss', cycle_A_loss.item())
-                self.add_summary(
-                    self.gen_B_writer, 'loss/cycle_B_loss', cycle_B_loss.item())
-                printedcycle=f"cA: {cycle_A_loss.item():.3f}; cB: {cycle_B_loss.item():.3f}"
-            else:
-                cycle_A_loss = 0
-                cycle_B_loss = 0      
-                printedcycle=""
-
-            self.optimG.zero_grad()
-            gen_loss.backward()
-            self.optimG.step()
-
-            # console logs
-            if self.config['global_rank'] == 0:
-                pbar.update(1)
-                pbar.set_description((
-                    f"dA: {dis_A_loss.item():.3f}; gA: {gan_A_loss_M.item():.3f};"
-                    f"{printedidtA}; {printedidtB};"
-                    f"dB: {dis_B_loss.item():.3f}; gB: {gan_B_loss.item():.3f};"
-                    f"{printedcycle}"
-                    )
-                )
-            # saving models
-            if self.iteration % self.train_args['save_freq'] == 0:
-                self.save(int(self.iteration//self.train_args['save_freq']))
-            if self.iteration > self.train_args['iterations']:
-                break
-
-    # this method means that we load target as well as input frames. but in one direction we have a mask and in the other we have !MT
-    # specularity detection algorithm is included in the training loop
-    # input is images with spec and target is images that are inpainted and now have no specs
-    def _train_epoch_InpTargFrames_masks_detection(self, pbar):
-        device = self.config['device']
-
-        for frames, framesNS, M, M_T, M_noDil, M_T_noDil in self.train_loader:
-            self.adjust_learning_rate()
-            self.iteration += 1
-            frames, framesNS, M, M_T, M_noDil, M_T_noDil = frames.to(device), framesNS.to(device), M.to(device), M_T.to(device), M_noDil.to(device), M_T_noDil.to(device)
-            b, t, c, h, w = frames.size()
-            masked_frame=(frames * (1 - M).float())
-            masked_frame_T=(frames * (1 - M_T).float())
-
-            # Real, Predicted, Identity, Rectified
-            pred_A_img = self.netG_A(masked_frame, M)
-            pred_A_img_T = self.netG_A(masked_frame_T, M_T)
-            idt_A = self.netG_A(framesNS,M)
-            rec_A = self.netG_B(pred_A_img.view(b, t, c, h, w), (1-M_T_noDil))
-
-            pred_B_img = self.netG_B(framesNS, (1-M_noDil))
-            pred_B_img_T = self.netG_B(framesNS, (1-M_T_noDil))
-            idt_B = self.netG_B(frames,(1-M_T_noDil))
-            
-            print(M.shape)
-            
-            cv2.imwrite("predB.png",cv2.cvtColor(((pred_B_img[0].cpu().detach().numpy().transpose(1,2,0)+ 1) / 2), cv2.COLOR_BGR2RGB)*255)
-            cv2.imwrite("M.png",M[0,0].cpu().detach().numpy().transpose(1,2,0)*255)
-            # exit(1)
-            # pred_B_img_to_mask = cv2.cvtColor((pred_B_img[0].cpu().detach().numpy().transpose(1,2,0)+ 1) / 2, cv2.COLOR_BGR2RGB)
-            M_added = SpecularDetectionMeslouhi2011(pred_B_img)
-            print(M_added.shape)
-            cv2.imwrite("Madd.png",M_added[0].cpu().detach().numpy().astype('uint8')*255)
-            cv2.imwrite("Madd1.png",M_added[1].cpu().detach().numpy().astype('uint8')*255)
-            cv2.imwrite("Madd2.png",M_added[2].cpu().detach().numpy().astype('uint8')*255)
-            cv2.imwrite("Madd3.png",M_added[3].cpu().detach().numpy().astype('uint8')*255)
-            cv2.imwrite("Madd4.png",M_added[4].cpu().detach().numpy().astype('uint8')*255)
-
-            
-            M_added[M_noDil!=0]=0
-            #TODO save image and make sure all good here.
-            rec_B = self.netG_A(pred_B_img.view(b, t, c, h, w), M_added)
-            
-            frames = frames.view(b*t, c, h, w)
-            framesNS = framesNS.view(b*t, c, h, w)
-            M_T = M_T.view(b*t, 1, h, w)
-            M = M.view(b*t, 1, h, w)
-            M_noDil = M_noDil.view(b*t, 1, h, w)
-            M_T_noDil = M_T_noDil.view(b*t, 1, h, w)
-            M_added = M_added.view(b*t, 1, h, w)
-
-            comp_A_img = frames*(1.-M) + M*pred_A_img
-            comp_A_img_T = frames*(1.-M_T) + M_T*pred_A_img_T
-            # comp_B_img = frames*(M_T) + (1-M_T)*pred_B_img
-            comp_B_img_T = frames*(M_T_noDil) + (1-M_T_noDil)*pred_B_img_T
-
-            gen_loss = 0
-            dis_A_loss = 0
-            dis_B_loss = 0
-
-            # discriminator adversarial loss A Masked
-            if self.config['losses']["indiv_A_loss"] == True:
-                real_A_vid_feat_M = self.netD_A(framesNS)
-                fake_A_vid_feat_M = self.netD_A(comp_A_img.detach())
-                dis_A_real_M_loss = self.adversarial_loss(real_A_vid_feat_M, True, True)
-                dis_A_fake_M_loss = self.adversarial_loss(fake_A_vid_feat_M, False, True)
-                dis_A_loss += (dis_A_real_M_loss + dis_A_fake_M_loss) / 2
-                self.add_summary(
-                    self.dis_A_writer, 'loss/dis_A_vid_fake_M', dis_A_fake_M_loss.item())
-                self.add_summary(
-                    self.dis_A_writer, 'loss/dis_A_vid_real_M', dis_A_real_M_loss.item())
-
-            if self.config['losses']["indiv_A_loss_T"] == True:
-                real_A_vid_feat_MT = self.netD_A(frames)
-                fake_A_vid_feat_MT = self.netD_A(comp_A_img_T.detach())
-                dis_A_real_MT_loss = self.adversarial_loss(real_A_vid_feat_MT, True, True)
-                dis_A_fake_MT_loss = self.adversarial_loss(fake_A_vid_feat_MT, False, True)
-                dis_A_loss += (dis_A_real_MT_loss + dis_A_fake_MT_loss) / 2
-                self.add_summary(
-                    self.dis_A_writer, 'loss/dis_A_vid_fake_MT', dis_A_fake_MT_loss.item())
-                self.add_summary(
-                    self.dis_A_writer, 'loss/dis_A_vid_real_MT', dis_A_real_MT_loss.item())
-
-
-            # discriminator adversarial loss B
-            real_B_vid_feat = self.netD_B(frames)
-            fake_B_vid_feat = self.netD_B(comp_B_img_T.detach())
-            dis_B_real_loss = self.adversarial_loss(real_B_vid_feat, True, True)
-            dis_B_fake_loss = self.adversarial_loss(fake_B_vid_feat, False, True)
-            dis_B_loss += (dis_B_real_loss + dis_B_fake_loss) / 2
-            self.add_summary(
-                self.dis_B_writer, 'loss/dis_B_vid_fake', dis_B_fake_loss.item())
-            self.add_summary(
-                self.dis_B_writer, 'loss/dis_B_vid_real', dis_B_real_loss.item())
-
-            # backward D
-            self.optimD.zero_grad()
-            dis_A_loss.backward()
-            dis_B_loss.backward()
-            self.optimD.step()
-
-            # generator adversarial loss A Masked
-            if self.config['losses']["indiv_A_loss"] == True:
-                gen_A_vid_feat_M = self.netD_A(comp_A_img)
-                gan_A_loss_M = self.adversarial_loss(gen_A_vid_feat_M, True, False)
-                gan_A_loss_M = gan_A_loss_M * self.config['losses']['adversarial_weight']
-                gen_loss += gan_A_loss_M
-                self.add_summary(
-                    self.gen_A_writer, 'loss/gan_A_M_loss', gan_A_loss_M.item())
-                
-                hole_A_loss = self.l1_loss(pred_A_img*M, framesNS*M)
-                hole_A_loss = hole_A_loss / max(torch.mean(M), epsilon) * self.config['losses']['hole_A_weight']
-                gen_loss += hole_A_loss 
-                self.add_summary(
-                    self.gen_A_writer, 'loss/hole_A_loss', hole_A_loss.item())
-
-                valid_A_loss = self.l1_loss(pred_A_img*(1-M), framesNS*(1-M))
-                valid_A_loss = valid_A_loss / max(torch.mean(1-M), epsilon) * self.config['losses']['valid_A_weight']
-                gen_loss += valid_A_loss 
-                self.add_summary(
-                    self.gen_A_writer, 'loss/valid_A_loss', valid_A_loss.item())
-            
-            if self.config['losses']["indiv_A_loss_T"] == True:
-                gen_A_vid_feat_MT = self.netD_A(comp_A_img_T)
-                gan_A_loss_MT = self.adversarial_loss(gen_A_vid_feat_MT, True, False)
-                gan_A_loss_MT = gan_A_loss_MT * self.config['losses']['adversarial_weight']
-                gen_loss += gan_A_loss_MT
-                self.add_summary(
-                    self.gen_A_writer, 'loss/gan_A_MT_loss', gan_A_loss_MT.item())
-
-                hole_A_lossT = self.l1_loss(pred_A_img_T*M_T, frames*M_T)
-                hole_A_lossT = hole_A_lossT / max(torch.mean(M_T), epsilon) * self.config['losses']['hole_A_weight']
-                gen_loss += hole_A_lossT 
-                self.add_summary(
-                    self.gen_A_writer, 'loss/hole_A_lossT', hole_A_lossT.item())
-
-                valid_A_lossT = self.l1_loss(pred_A_img_T*(1-M_T), frames*(1-M_T))
-                valid_A_lossT = valid_A_lossT / max(torch.mean(1-M_T), epsilon) * self.config['losses']['valid_A_weight']
-                gen_loss += valid_A_lossT 
-                self.add_summary(
-                    self.gen_A_writer, 'loss/valid_A_lossT', valid_A_lossT.item())
-
-
-            # generator adversarial loss B
-            gen_B_vid_feat = self.netD_B(comp_B_img_T)
-            gan_B_loss = self.adversarial_loss(gen_B_vid_feat, True, False)
-            gan_B_loss = gan_B_loss * self.config['losses']['adversarial_weight']
-            gen_loss += gan_B_loss
-            self.add_summary(
-                self.gen_B_writer, 'loss/gan_B_loss', gan_B_loss.item())
-
-
-            # generator l1 loss B Masked
-            hole_B_loss = self.l1_loss(pred_B_img_T*M_T_noDil, frames*M_T_noDil)
-            hole_B_loss = hole_B_loss / max(torch.mean(M_T_noDil), epsilon) * self.config['losses']['hole_A_weight']
-            gen_loss += hole_B_loss 
-            self.add_summary(
-                self.gen_B_writer, 'loss/hole_B_loss', hole_B_loss.item())
-
-            valid_B_loss = self.l1_loss(pred_B_img_T*(1-M_T_noDil), frames*(1-M_T_noDil))
-            valid_B_loss = valid_B_loss / max(torch.mean(1-M_T_noDil), epsilon) * self.config['losses']['valid_A_weight']
-            gen_loss += valid_B_loss 
-            self.add_summary(
-                self.gen_B_writer, 'loss/valid_B_loss', valid_B_loss.item())
-
-            # identity and cycle weights
-            lambda_idt_A = self.config['losses']['idt_A_weight']
-            lambda_idt_B = self.config['losses']['idt_B_weight']
-            lambda_A = self.config['losses']['cycle_A_weight']
-            lambda_B = self.config['losses']['cycle_B_weight']
-
-            # generator l1 loss
-            if lambda_idt_A > 0:
-                idt_A_loss = self.l1_loss(idt_A, framesNS) * lambda_idt_A
-                gen_loss += idt_A_loss 
-                self.add_summary(
-                    self.gen_A_writer, 'loss/idt_A_loss', idt_A_loss.item())
-                printedidtA=f"idtA: {idt_A_loss.item():.3f}"
-            else:
-                idt_A_loss = 0
-                printedidtA=""
-
-            if lambda_idt_B > 0:
-                idt_B_loss = self.l1_loss(idt_B, frames) * lambda_idt_B
-                gen_loss += idt_B_loss 
-                self.add_summary(
-                    self.gen_B_writer, 'loss/idt_B_loss', idt_B_loss.item())
-                printedidtB=f"idtB: {idt_B_loss.item():.3f}"
-            else:
-                idt_B_loss = 0
-                printedidtB=""
-
-            if lambda_A > 0 or lambda_B > 0:
-                # Forward cycle loss || G_B(G_A(A)) - A||
-                cycle_A_loss = self.l1_loss(rec_A, frames) * lambda_A
-                # Backward cycle hole and valid loss || G_A(G_B(B)) - B||
-                cycle_B_loss = self.l1_loss(rec_B, frames) * lambda_B
                 gen_loss += cycle_A_loss + cycle_B_loss
                 self.add_summary(
                     self.gen_A_writer, 'loss/cycle_A_loss', cycle_A_loss.item())

@@ -2,6 +2,8 @@ import os
 import glob
 from tqdm import tqdm
 import importlib
+import numpy as np
+from PIL import Image
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -306,24 +308,24 @@ class Trainer():
             frames, NS_frames, empty_masks = frames.to(device), NS_frames.to(device), empty_masks.to(device)
             b, t, c, h, w = frames.size()
             pred_img = self.netG(NS_frames, empty_masks)
-            #visualize
-            comp = (pred_img+1)/2
-            comp = comp.cpu().permute(0,2,3,1).detach().numpy()*255
-            vis_img = np.array(comp[0]).astype(np.uint8)
-            Image.fromarray(vis_img).save("predimgtest.png")
+            # #visualize
+            # comp = (pred_img+1)/2
+            # comp = comp.cpu().permute(0,2,3,1).detach().numpy()*255
+            # vis_img = np.array(comp[0]).astype(np.uint8)
+            # Image.fromarray(vis_img).save("predimgtest.png")
 
             # exit(1)
             frames = frames.view(b*t, c, h, w)
-            comp = (frames+1)/2
-            comp = comp.cpu().permute(0,2,3,1).detach().numpy()*255
-            vis_img = np.array(comp[0]).astype(np.uint8)
-            Image.fromarray(vis_img).save("imgOuttest.png")
+            # comp = (frames+1)/2
+            # comp = comp.cpu().permute(0,2,3,1).detach().numpy()*255
+            # vis_img = np.array(comp[0]).astype(np.uint8)
+            # Image.fromarray(vis_img).save("imgOuttest.png")
 
             NS_frames = NS_frames.view(b*t, c, h, w)
-            comp = (NS_frames+1)/2
-            comp = comp.cpu().permute(0,2,3,1).detach().numpy()*255
-            vis_img = np.array(comp[0]).astype(np.uint8)
-            Image.fromarray(vis_img).save("imgInptest.png")
+            # comp = (NS_frames+1)/2
+            # comp = comp.cpu().permute(0,2,3,1).detach().numpy()*255
+            # vis_img = np.array(comp[0]).astype(np.uint8)
+            # Image.fromarray(vis_img).save("imgInptest.png")
 
             gen_loss = 0
             dis_loss = 0

@@ -1,31 +1,21 @@
 import os
 import cv2
-import io
-import glob
-import scipy
 import json
-import zipfile
 import random
-import collections
 import torch
-import math
 import numpy as np
-import torchvision.transforms.functional as F
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from PIL import Image, ImageFilter
-from skimage.color import rgb2gray, gray2rgb
-from core.utils import ZipReader, create_random_shape_with_random_motion
-from core.utils import Stack, ToTorchFormatTensor, GroupRandomHorizontalFlip
+from PIL import Image
+from core.utils import ZipReader
+from core.utils import Stack, ToTorchFormatTensor
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, config, split='train', debug=False):
-        self.shifted=config["data_loader"]['shifted']
-        self.Dil=config['Dil']
-        args = config['data_loader']
-        self.args = args
+    def __init__(self, args: dict, split='train', debug=False):
+        self.shifted=args['shifted']
         self.masking=args['masking']
+        self.Dil=args['Dil']
+        self.args = args
         self.split = split
         self.sample_length = args['sample_length']
         self.size = self.w, self.h = (args['w'], args['h'])
@@ -69,8 +59,6 @@ class Dataset(torch.utils.data.Dataset):
         masks = []
         masks_T=[]
         empty_masks = []
-        masks_T_nodil = []
-        masks_nodil = []
         for idx in ref_index:
             zfilelist = ZipReader.filelist('{}/{}/JPEGImages/{}.zip'.format(
                 self.args['data_root'], self.args['name'], video_name)) #used since all_frames counts from 0 whereas zfilelist checks the correct naming of files
@@ -103,7 +91,7 @@ class Dataset(torch.utils.data.Dataset):
                 all_mask=Image.fromarray(m*255)
                 empty_mask=all_mask.copy()
                 framesB=frames.copy()
-            elif self.masking=='mixed' or self.masking=="load_add" or self.masking=="load_add_detection":
+            elif self.masking=='mixed' or self.masking=="load_add":
                 if self.masking=='mixed': empty_mask=all_masks[idx]
                 imgB = ZipReader.imread('{}/{}/JPEGImagesNS/{}.zip'.format(
                     self.args['data_root'], self.args['name'], video_name), zfilelist[idx]).convert('RGB')
@@ -114,16 +102,6 @@ class Dataset(torch.utils.data.Dataset):
                 m = m.resize(self.size)
                 m = np.array(m.convert('L'))
                 m = np.array(m > 199).astype(np.uint8) #Rema:from 0 to 199 changes to binary better
-                if self.masking =='load_add_detection':
-                    m_nodil = np.copy(m)
-                    m_T_nodil=np.copy(m)
-                    if self.shifted:
-                        M = np.float32([[1,0,50],[0,1,0]])
-                        m_T_nodil = cv2.warpAffine(m_nodil,M,self.size)
-                        m_T_nodil[m_nodil!=0]=0
-                    all_mask_T_nodil=Image.fromarray(m_T_nodil*255)
-                    all_mask_nodil=Image.fromarray(m_nodil*255)
-                    
                 m = cv2.dilate(m, cv2.getStructuringElement(
                     cv2.MORPH_ELLIPSE, (self.Dil,self.Dil)), iterations=1) #Rema:Dilate only 1 iteration change 3,3 to 55(tried it in quantifyResults.ipyb
                 m_T=np.copy(m)
@@ -133,7 +111,7 @@ class Dataset(torch.utils.data.Dataset):
                     m_T[m!=0]=0
                 all_mask_T=Image.fromarray(m_T*255)
                 all_mask=Image.fromarray(m*255)
-                if self.masking=='load_add' or self.masking=='load_add_detection': empty_mask=all_mask.copy()
+                if self.masking=='load_add': empty_mask=all_mask.copy()
 
             elif self.masking=='simple mixed':
                 empty_mask=all_masks[idx]
@@ -156,9 +134,6 @@ class Dataset(torch.utils.data.Dataset):
             masks_T.append(all_mask_T)
             masks.append(all_mask)
             empty_masks.append(empty_mask)
-            if self.masking=='load_add_detection': 
-                masks_T_nodil.append(all_mask_T_nodil)
-                masks_nodil.append(all_mask_nodil)
             
         # if self.split == 'train':
         #     frames = GroupRandomHorizontalFlip()(frames)
@@ -169,12 +144,7 @@ class Dataset(torch.utils.data.Dataset):
         mask_tensors = self._to_tensors(masks)
         mask_T_tensors = self._to_tensors(masks_T)
         empty_masks_tensors = self._to_tensors(empty_masks)
-        if self.masking=='load_add_detection': 
-            masks_T_nodil_tensors = self._to_tensors(masks_T_nodil)
-            masks_nodil_tensors = self._to_tensors(masks_nodil)
-            return frame_tensors, framesB_tensors, mask_tensors, mask_T_tensors, masks_nodil_tensors, masks_T_nodil_tensors
-        else:
-            return frame_tensors, framesB_tensors, mask_tensors, mask_T_tensors, empty_masks_tensors
+        return frame_tensors, framesB_tensors, mask_tensors, mask_T_tensors, empty_masks_tensors
 
 
 def get_ref_index(length, sample_length):

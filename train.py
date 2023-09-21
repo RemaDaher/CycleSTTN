@@ -2,7 +2,6 @@
 import os
 import json
 import argparse
-import datetime
 import numpy as np
 from shutil import copyfile
 import torch
@@ -22,8 +21,6 @@ parser.add_argument('-cnf', '--config', default='configs/youtube-vos.json', type
 parser.add_argument('-m', '--model', default='sttn', type=str)
 parser.add_argument('-p', '--port', default='23455', type=str)
 parser.add_argument('-e', '--exam', action='store_true')
-parser.add_argument("--shifted", action='store_true')
-parser.add_argument("-d", "--Dil", type=int, default=8)
 parser.add_argument("-c", "--ckptpath", default='/release_model/notexistant/', type=str)
 parser.add_argument("-cn", "--ckptnumber", default='/release_model/notexistant/', type=str)
 args = parser.parse_args()
@@ -75,9 +72,7 @@ if __name__ == "__main__":
     # loading configs
     config = json.load(open(args.config))
     os.environ["CUDA_VISIBLE_DEVICES"]=config['gpu'] #added by Rema to choose only one GPU
-    config['shifted']=args.shifted
     config['model'] = args.model
-    config['Dil'] = args.Dil
     config['config'] = args.config
     config['initialmodel'] = args.ckptpath #added by Rema for loading initializing model
     config['chosen_epoch'] = args.ckptnumber #added by Rema for loading initializing model
