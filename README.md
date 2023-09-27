@@ -190,7 +190,7 @@ python <<train.py or train-cycle.py>> --model sttn \
 ## Evaluation
 To quantitatively evaluate results using the pseudo-ground truth:
 1. Test all videos using [Testing Script (2.)](#testing-script) with removed specularity frames as input (JPEGImagesNS folder instead of JPEGImages)
-2. Use [quantifyResults.ipynb](./quantifyResults.ipynb) to generate csv files containing the quantitative results.
+2. Use [quantifyResultsAddingSpecs.ipynb](./quantifyResultsAddingSpecs.ipynb) to generate csv files containing the quantitative results.
 
 ## Training Monitoring  
 
