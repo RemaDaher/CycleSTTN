@@ -2,7 +2,7 @@
 ![teaser](./docs/ImageCompare2023v3.png?raw=true)
 ***Fig. 1.** Sample consecutive video frames from the model output using pseudo ground truth VR as input in columns 1-4 and real videos VA as input in columns 5-8.*
 
-### [Paper](????) | [BibTex](#citation)
+### [Paper](https://doi.org/10.1007/978-3-031-43999-5_54) | [BibTex](#citation)
 
 CycleSTTN: A Learning-Based Temporal Model for Specular Augmentation in Endoscopy<br>
 
@@ -12,11 +12,13 @@ _The 26th International Conference on Medical Image Computing and Computer Assis
 ## Citation
 If any part of our paper and repository is helpful to your work, please generously cite with:
 ```
-@article{daher2023cyclesttn,
+@inproceedings{daher2023cyclesttn,
   title={CycleSTTN: A Learning-Based Temporal Model for Specular Augmentation in Endoscopy},
-  author={Daher, Rema and Barbed, O. León and Murillo, Ana C. and Vasconcelos, Francisco and Stoyanov, Danail},
-  journal={International Conference on Medical Image Computing and Computer Assisted Intervention (MICCAI)},
-  year={2023}
+  author={Daher, Rema and Barbed, O Le{\'o}n and Murillo, Ana C and Vasconcelos, Francisco and Stoyanov, Danail},
+  booktitle={International Conference on Medical Image Computing and Computer-Assisted Intervention},
+  pages={570--580},
+  year={2023},
+  organization={Springer}
 }
 ```
 
